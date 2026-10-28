@@ -1,0 +1,117 @@
+server:
+  port: 8080
+  tomcat:
+    # Allow 60k max connections (headroom above 50k target)
+    max-connections: 60000
+    # Accept queue for incoming connections
+    accept-count: 5000
+    # Connection timeout for idle connections
+    connection-timeout: 300000
+    # Keep-alive timeout
+    keep-alive-timeout: 60000
+
+spring:
+  application:
+    name: enterprise-chat
+
+  # ============================================
+  # VIRTUAL THREADS — Critical for 50k connections
+  # Each virtual thread uses ~4KB vs ~1MB for platform threads
+  # ============================================
+  threads:
+    virtual:
+      enabled: true
+
+  # ============================================
+  # PostgreSQL Configuration
+  # ============================================
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:15432/enterprise_chat}
+    username: postgres
+    password: postgres
+    hikari:
+      # Increased pool size and timeout to handle 50k instant spike
+      maximum-pool-size: 200
+      minimum-idle: 10
+      connection-timeout: 60000
+      idle-timeout: 300000
+      max-lifetime: 600000
+      pool-name: ChatHikariPool
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        "dialect": org.hibernate.dialect.PostgreSQLDialect
+        "format_sql": false
+        # Batch inserts for MessageBatchWriter
+        "jdbc":
+          "batch_size": 50
+        "order_inserts": true
+        "order_updates": true
+
+  # ============================================
+  # Redis Configuration
+  # ============================================
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:16379}
+      timeout: 5000
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
+
+  # ============================================
+  # Cassandra Configuration
+  # ============================================
+  cassandra:
+    contact-points: ${SPRING_CASSANDRA_CONTACT_POINTS:localhost}
+    port: 9042
+    keyspace-name: chat_keyspace
+    local-datacenter: datacenter1
+    schema-action: create-if-not-exists
+    request:
+      timeout: 10s
+    connection:
+      connect-timeout: 10s
+      init-query-timeout: 10s
+
+  # ============================================
+  # SQL Init
+  # ============================================
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+# ============================================
+# JWT Configuration
+# ============================================
+app:
+  jwt:
+    secret: "Y2hhdC1wbGF0Zm9ybS1zZWNyZXQta2V5LXRoYXQtaXMtYXQtbGVhc3QtMjU2LWJpdHMtbG9uZy1mb3Itc2VjdXJpdHk="
+    expiration-ms: 86400000  # 24 hours
+
+  # Message batch writer config
+  batch:
+    size: 50
+    flush-interval-ms: 100
+
+  # Presence heartbeat TTL
+  presence:
+    ttl-seconds: 60
+
+# ============================================
+# Logging — minimal for performance
+# ============================================
+logging:
+  level:
+    root: WARN
+    "com.enterprise.chat": INFO
+    "org.springframework.web.socket": WARN
+    "org.hibernate.SQL": WARN
